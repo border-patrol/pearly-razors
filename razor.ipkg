@@ -1,0 +1,9 @@
+package razor
+
+modules = Razor.Common
+        , Razor.PLFA
+        , Razor.Tupled
+        , Razor.Recorded
+        , Razor.Variant
+        , Razor.Variant.Unique
+        , Razor.SystemFoo

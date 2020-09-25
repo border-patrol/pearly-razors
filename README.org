@@ -1,0 +1,48 @@
+#+TITLE: A Fistful of Pearly Razors: Mechanising SystemFoo & Friends in Idris
+
+* What
+
+Using well-studied techniques the STLC can be encoded in dependently typed languages as a well-typed /Embedded Domain Specific Languages/ (EDSLs). Here terms and types are kept separate.
+However, when looking to study more powerful variants, that include type-synonyms and data declarations, the lines between terms and types begin to blur.
+This impacts on our EDSLs' expressiveness and ability to create well-typed terms for variants.
+
+This repository shows how we can use well-studied techniques from dependent type theory, namely type universes and types as terms, to encode various well-typed EDSLs.
+With our approach types become terms and our mechanised proofs of type-safety need not be anything special.
+We illustrate our approach by considering various expression languages and an implementation of $\mathrm{System~F}_{\underline{\omega}}$ aka $\lambda_{\underline{\omega}}$ which we refer to as =SystemFoo= to avoid issues with Unicode.
+=SystemFoo= is a STLC that supports type aliasing and new types.
+
+* How
+
+We have encoded our examples in [[https://www.idris-lang.org][Idris2]], a well-known dependently typed general purpose functional programming language.
+We advise that you use the [[https://github.com/idris-lang/Idris2][latest development version]] of Idris2 due to issues with Idris2 totality checker.
+
+This repository presents a series of Functional Razors (minimal expression languages) that builds up the presentation of the approach.
+Each language supports let-bindings.
+Particularly we present:
+
++ Razor.PLFA :: introduces Products & Sums
++ Razor.Tuples :: introduces how to encode n-ary tuples
++ Razor.Recorded :: introduces how to encode n-ary named tuples
++ Razor.Variant :: introduces how to encode n-ary variant types
++ Razor.Variant.Unique :: introduces how to ensure n-ary variant types are unique using type ascriptions
++ Razor.SystemFoo :: introduces how to combine the knowledge of =Razor.Recorded= & =Razor.Variant.Unique= to describe =SystemFoo=
+
+* Organisation
+
+For familiarity, each Razor's namespace splits the code into the following namespaces to describe:
+
++ Types :: types and contexts.
++ Terms :: terms.
++ Renaming :: renaming of terms.
++ Substitution :: substitution of terms.
++ Reduction :: reduction of terms.
++ Values :: which terms are values.
++ Progress  :: how to apply reduction to obtain a value.
++ Evaluation :: evaluating terms to obtain a value complete with set of reductions required.
+
+* Bug In Idris2's Totality Checker
+
+The code for =Razor.Variant.Unique= and =Razor.SystemFoo= *is* total.
+However, there is a known issue with Idris2's totality checker that causes it to slow down when dealing with mutually defined terms.
+We have marked them covering to ensure the compiler completes
+as expected.

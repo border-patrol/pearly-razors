@@ -1,0 +1,35 @@
+#+TITLE: Building
+
+* Building
+
+To build and play with the examples we advise that you use the [[https://github.com/idris-lang/Idris2][latest development version]] of Idris2 due to issues with Idris2 totality checker.
+
+The complete set of examples can be type & termination checked by invoking:
+
+#+begin_src bash
+idris2 --build razor.ipg
+#+end_src
+
+The output should look something like:
+
+#+begin_src bash
+1/7: Building Razor.Common (Razor/Common.idr)
+2/7: Building Razor.SystemFoo (Razor/SystemFoo.idr)
+3/7: Building Razor.Variant.Unique (Razor/Variant/Unique.idr)
+4/7: Building Razor.Variant (Razor/Variant.idr)
+5/7: Building Razor.Recorded (Razor/Recorded.idr)
+6/7: Building Razor.Tupled (Razor/Tupled.idr)
+7/7: Building Razor.PLFA (Razor/PLFA.idr)
+#+end_src
+
+and take around 15 seconds to check:
+
+#+begin_src bash
+14.59user 0.14system 0:14.73elapsed 99%CPU (0avgtext+0avgdata 196364maxresident)k
+0inputs+13600outputs (0major+105662minor)pagefaults 0swaps
+#+end_src
+
+* Playing
+
+You are free to augment the examples and extend the set of examples directly within the declared modules.
+However, it would be better to create new example modules and import the languages.

@@ -1,11 +1,19 @@
-||| An expression language with mechanical proof of type-safety.
+||| A simply expression language, adapted from PLFA Part 2 [1],
+||| together with mechanical proof of type-safety.
 |||
-||| `PLFA` is an expression language supporting Let-bindings,
-||| Products, and Sums.  Standard constructions are used to represent
-||| the language as an EDSL, together with proof of progress taken
-||| from PLFA Part 2.
+||| `PLFA` is an expression language supporting:
+|||
+||| + Let-bindings;
+||| + Products; and
+||| + Sums
+|||
+||| Well-known construction techniques are used to represent the
+||| language as an intrindsically well-typed EDSL, together with it's
+||| mechanical proof of progress.
 |||
 ||| This module corresponds to Section 2 of the Functional Pearl.
+|||
+||| [1] https://plfa.github.io/
 |||
 module Razor.PLFA
 
@@ -24,7 +32,7 @@ namespace Types
 namespace Terms
 
   public export
-  data PLFA : List Ty -> Ty -> Type where
+  data PLFA : (ctxt : List Ty) -> (type : Ty) -> Type where
     -- Let-Bindings & Variables
     Var : Elem ty g -> PLFA g ty
     Let : (this     : PLFA        g  expr)

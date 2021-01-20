@@ -25,19 +25,19 @@ namespace Types
   ||| Levels at which types and their types are defined in our type
   ||| universes.
   public export
-  data Level = Type0 -- Build types here
-             | Type1 -- Use types here.
+  data Level = TYPE -- Build types here
+             | VALUE -- Use types here.
 
   ||| Our types are meta types...
   public export
   data MTy : Level -> Type where
 
     -- Explicit Type formers
-    IntTyDesc : MTy Type0
-    IntTy : MTy Type1
+    IntTyDesc : MTy TYPE
+    IntTy : MTy VALUE
 
-    CharTyDesc : MTy Type0
-    CharTy : MTy Type1
+    CharTyDesc : MTy TYPE
+    CharTy : MTy VALUE
 
     -- Implicit constructions.
     NewtypeTy : MTy level -> MTy level
@@ -47,8 +47,8 @@ namespace Types
 
   ||| A predicate to type check types against type formers.
   public export
-  data TyCheck : (type : MTy Type0)
-              -> (value : MTy Type1)
+  data TyCheck : (type : MTy TYPE)
+              -> (value : MTy VALUE)
               -> Type
     where
       ChkInt  : TyCheck IntTyDesc IntTy
@@ -80,11 +80,11 @@ namespace Terms
 
       Var : Elem Level MTy type ctxt -> SystemFoo ctxt type
 
-      Func : {paramTy, bodyTy : MTy Type1}
+      Func : {paramTy, bodyTy : MTy VALUE}
           -> (term : SystemFoo (ctxt +=         paramTy) bodyTy)
                   -> SystemFoo  ctxt    (FuncTy paramTy  bodyTy)
 
-      App : {paramTy, bodyTy : MTy Type1}
+      App : {paramTy, bodyTy : MTy VALUE}
          -> (func  : SystemFoo ctxt (FuncTy paramTy bodyTy))
          -> (value : SystemFoo ctxt         paramTy)
                   -> SystemFoo ctxt                 bodyTy
@@ -93,14 +93,14 @@ namespace Terms
       TyInt  : SystemFoo ctxt IntTyDesc
       TyChar : SystemFoo ctxt CharTyDesc
 
-      TyFunc : {paramMTy, returnMTy : MTy Type0}
+      TyFunc : {paramMTy, returnMTy : MTy TYPE}
             -> (paramTy  : SystemFoo ctxt paramMTy)
             -> (returnTy : SystemFoo ctxt returnMTy)
                         -> SystemFoo ctxt (FuncTy paramMTy returnMTy)
 
       -- Type Ascriptions
-      The : {  mtypeType  : MTy Type0}
-         -> {  mtypeValue : MTy Type1}
+      The : {  mtypeType  : MTy TYPE}
+         -> {  mtypeValue : MTy VALUE}
          -> (  type  : SystemFoo ctxt mtypeType)
          -> (  value : SystemFoo ctxt mtypeValue)
          -> (0 prf   : TyCheck mtypeType mtypeValue)
@@ -112,27 +112,27 @@ namespace Terms
       C : Char -> SystemFoo ctxt CharTy
 
       -- NewType Type & Value Constructors, and Matching.
-      TyCTor : {type : MTy Type0}
+      TyCTor : {type : MTy TYPE}
             -> (desc : SystemFoo ctxt type)
                     -> SystemFoo ctxt (NewtypeTy type)
 
-      CTor : {typeM : MTy Type0}
-          -> {typeV : MTy Type1}
+      CTor : {typeM : MTy TYPE}
+          -> {typeV : MTy VALUE}
           -> (  type  : SystemFoo ctxt (NewtypeTy typeM))
           -> (  value : SystemFoo ctxt typeV)
           -> (0 prf   : TyCheck typeM typeV)
           -> SystemFoo ctxt (NewtypeTy typeV)
 
-      Match : {type  : MTy Type1}
-           -> {bodyTy : MTy Type1}
+      Match : {type  : MTy VALUE}
+           -> {bodyTy : MTy VALUE}
            -> (value : SystemFoo ctxt           (NewtypeTy type))
            -> (body  : SystemFoo (ctxt += type) bodyTy)
                     -> SystemFoo ctxt           bodyTy
 
       -- Binders
-      Let : {  mtypeType  : MTy Type0}
-         -> {  mtypeValue : MTy Type1}
-         -> {  bodyType   : MTy Type1}
+      Let : {  mtypeType  : MTy TYPE}
+         -> {  mtypeValue : MTy VALUE}
+         -> {  bodyType   : MTy VALUE}
          -> (  type  : SystemFoo ctxt mtypeType)
          -> (  value : SystemFoo ctxt mtypeValue)
          -> (0 prf   : TyCheck mtypeType mtypeValue)
@@ -140,14 +140,14 @@ namespace Terms
                     -> SystemFoo  ctxt                bodyType
 
       NewType : {lvl : Level}
-             -> {type : MTy Type0}
+             -> {type : MTy TYPE}
              -> {bodyType : MTy lvl}
              -> (desc : SystemFoo ctxt (NewtypeTy type))
              -> (body : SystemFoo (ctxt += (NewtypeTy type)) bodyType)
                      -> SystemFoo ctxt                       bodyType
 
       TypeAlias : {lvl : Level}
-               -> {type : MTy Type0}
+               -> {type : MTy TYPE}
                -> {bodyTy : MTy lvl}
                -> (desc : SystemFoo  ctxt    type)
                -> (body : SystemFoo (ctxt += type) bodyTy)
@@ -446,7 +446,7 @@ namespace Reduction
                              -> Redux (NewType this body)
                                       (NewType that body)
 
-      ReduceNewType : {typeD : MTy Type0}
+      ReduceNewType : {typeD : MTy TYPE}
                    -> {desc : SystemFoo ctxt (NewtypeTy typeD)}
                    -> {body : SystemFoo (ctxt += (NewtypeTy typeD))    typeB}
                    -> (value : Value desc)

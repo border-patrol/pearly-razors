@@ -20,15 +20,15 @@ import Razor.Common
 namespace Types
 
   public export
-  data Level = Zero | One
+  data Level = TYPE | VALUE
 
   public export
   data Ty : Level -> Type where
-    TyInt  : Ty One
-    TyChar : Ty One
-    TyVariant : (fields : Vect (S n) (Pair String (Ty One))) -> Ty One
+    TyInt  : Ty VALUE
+    TyChar : Ty VALUE
+    TyVariant : (fields : Vect (S n) (Pair String (Ty VALUE))) -> Ty VALUE
 
-    TyVariantDecl : (fields : Vect (S n) (Pair String (Ty One))) -> Ty Zero
+    TyVariantDecl : (fields : Vect (S n) (Pair String (Ty VALUE))) -> Ty TYPE
 
 namespace Context
   public export
@@ -56,26 +56,26 @@ namespace Terms
       public export
       data Case : (ctxt  : Context levels)
                -> (label : String)
-               -> (type  : Ty One)
-               -> (body  : Ty One)
+               -> (type  : Ty VALUE)
+               -> (body  : Ty VALUE)
                -> Type
         where
-          MkCase : {type, body : Ty One}
+          MkCase : {type, body : Ty VALUE}
                 -> (label  : String)
                 -> (branch : Variant (ctxt +=    type) body)
                           -> Case     ctxt label type  body
 
       public export
       data Cases : (ctxt  : Context levels)
-                -> (types : Vect (S n) (Pair String (Ty One)))
-                -> (body  : Ty One)
+                -> (types : Vect (S n) (Pair String (Ty VALUE)))
+                -> (body  : Ty VALUE)
                 -> Type
         where
-            Singleton : {type, body : Ty One}
+            Singleton : {type, body : Ty VALUE}
                      -> (branch : Case  ctxt   label  type   body)
                                -> Cases ctxt [(label, type)] body
 
-            Extend : {type, body : Ty One}
+            Extend : {type, body : Ty VALUE}
                   -> (branch : Case ctxt   label  type          body)
                   -> (rest   : Cases ctxt                   kvs  body)
                             -> Cases ctxt ((label, type) :: kvs) body
@@ -84,20 +84,20 @@ namespace Terms
       public export
       data Field : (ctxt  : Context levels)
                 -> (label : String)
-                -> (type  : Ty One)
+                -> (type  : Ty VALUE)
                 -> Type
         where
-          MkField : {type' : Ty One}
+          MkField : {type' : Ty VALUE}
                  -> (label : String)
                  -> (desc  : Variant ctxt type')
                           -> Field ctxt label type'
           MkPrim : (label : String)
-                -> (type' : Ty One)
+                -> (type' : Ty VALUE)
                          -> Field ctxt label type'
 
       public export
       data Fields : (ctxt : Context levels)
-                 -> (kvs  : Vect (S n) (Pair String (Ty One)))
+                 -> (kvs  : Vect (S n) (Pair String (Ty VALUE)))
                  -> Type
         where
           Singleton : (field : Field  ctxt   label  type)
@@ -124,13 +124,13 @@ namespace Terms
       C : Char -> Variant g TyChar
 
       -- Variant Type Constructors
-      VariantTy : {kvs : Vect (S n) (Pair String (Ty One))}
+      VariantTy : {kvs : Vect (S n) (Pair String (Ty VALUE))}
                -> (fields : Fields   g                kvs)
                          -> Variant  g (TyVariantDecl kvs)
 
       -- Variant Value Constructors
-      Tag : {ty : Ty One}
-         -> {kvs : Vect (S n) (Pair String (Ty One))}
+      Tag : {ty : Ty VALUE}
+         -> {kvs : Vect (S n) (Pair String (Ty VALUE))}
          -> (label : String)
          -> (value : Variant g ty)
          -> (type  : Variant g (TyVariantDecl kvs))
@@ -138,8 +138,8 @@ namespace Terms
                   -> Variant g (TyVariant     kvs)
 
       -- Variant Matching
-      Match : {kvs : Vect (S n) (Pair String (Ty One))}
-           -> {b : Ty One}
+      Match : {kvs : Vect (S n) (Pair String (Ty VALUE))}
+           -> {b : Ty VALUE}
            -> (value : Variant g (TyVariant kvs))
            -> (cases : Cases   g            kvs   b)
                     -> Variant g                  b
@@ -166,7 +166,7 @@ namespace Renaming
                             -> Context.Contains old type
                             -> Context.Contains new type)
 
-            -> ({type, body : Ty One} -> Case old label type body
+            -> ({type, body : Ty VALUE} -> Case old label type body
                                       -> Case new label type body)
       rename f (MkCase label branch)
         = MkCase label (rename (weaken f) branch)
@@ -293,7 +293,7 @@ namespace Substitution
                    . {type : Ty level}
                    -> Context.Contains old type
                    -> Variant          new type)
-             -> ({type, body : Ty One} -> Case old label type body
+             -> ({type, body : Ty VALUE} -> Case old label type body
                                        -> Case new label type body)
         subst f (MkCase label branch)
           = MkCase label (subst (weakens f) branch)
@@ -404,8 +404,8 @@ namespace Values
                 -> Value (VariantTy fields)
 
       -- Variant Value Constructors
-      TagV : {kvs    : Vect (S n) (Pair String (Ty One))}
-          -> {mtype  : Ty One}
+      TagV : {kvs    : Vect (S n) (Pair String (Ty VALUE))}
+          -> {mtype  : Ty VALUE}
           -> {value  : Variant g mtype}
           -> {type   : Variant g (TyVariantDecl kvs)}
           -> (prfV   : Value value)
@@ -492,7 +492,7 @@ namespace Reduction
                                 (VariantTy that)
 
       -- Variant Value Constructors
-      SimplifyTagType : {kvs        : Vect (S n) (Pair String (Ty One))}
+      SimplifyTagType : {kvs        : Vect (S n) (Pair String (Ty VALUE))}
                      -> {this, that : Variant ctxt (TyVariantDecl kvs)}
                      -> {value      : Variant ctxt type'}
                      -> {idx        : Elem (label, type') kvs}
@@ -500,7 +500,7 @@ namespace Reduction
                                    -> Redux (Tag label value this idx)
                                             (Tag label value that idx)
 
-      SimplifyTagValue : {kvs        : Vect (S n) (Pair String (Ty One))}
+      SimplifyTagValue : {kvs        : Vect (S n) (Pair String (Ty VALUE))}
                       -> {this, that : Variant ctxt type'}
                       -> {type       : Variant ctxt (TyVariantDecl kvs)}
                       -> {idx        : Elem (label, type') kvs}
@@ -514,11 +514,11 @@ namespace Reduction
                        -> (redux : Redux this that)
                                 -> Redux (Match this cases) (Match that cases)
 
-      ReduceCases : {kvs   : Vect (S n) (Pair String (Ty One))}
+      ReduceCases : {kvs   : Vect (S n) (Pair String (Ty VALUE))}
                  -> {idx   : Elem (label, typeV) kvs}
                  -> {value : Variant g typeV}
                  -> {type  : Variant g (TyVariantDecl kvs)}
-                 -> {body  : Ty One}
+                 -> {body  : Ty VALUE}
                  -> {this  : Cases g kvs body}
                  -> {that  : Variant g body}
                  -> (prfV   : Value value)

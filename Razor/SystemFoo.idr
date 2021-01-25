@@ -80,8 +80,12 @@ namespace Terms
 
       Var : Elem Level MTy type ctxt -> SystemFoo ctxt type
 
-      Func : {paramTy, bodyTy : MTy VALUE}
+      Func : {paramTyType     : MTy TYPE}
+          -> {paramTy, bodyTy : MTy VALUE}
+
+          -> (type : SystemFoo ctxt paramTyType)
           -> (term : SystemFoo (ctxt +=         paramTy) bodyTy)
+          -> (prf  : TyCheck paramTyType paramTy)
                   -> SystemFoo  ctxt    (FuncTy paramTy  bodyTy)
 
       App : {paramTy, bodyTy : MTy VALUE}
@@ -130,19 +134,15 @@ namespace Terms
                     -> SystemFoo ctxt           bodyTy
 
       -- Binders
-      Let : {  mtypeType  : MTy TYPE}
-         -> {  mtypeValue : MTy VALUE}
-         -> {  bodyType   : MTy VALUE}
-         -> (  type  : SystemFoo ctxt mtypeType)
-         -> (  value : SystemFoo ctxt mtypeValue)
-         -> (0 prf   : TyCheck mtypeType mtypeValue)
-         -> (  body  : SystemFoo (ctxt += mtypeValue) bodyType)
-                    -> SystemFoo  ctxt                bodyType
+      Let : {  exprTy, bodyType : MTy VALUE}
+         -> (  value : SystemFoo ctxt exprTy)
+         -> (  body  : SystemFoo (ctxt += exprTy) bodyType)
+                    -> SystemFoo  ctxt            bodyType
 
       NewType : {lvl : Level}
              -> {type : MTy TYPE}
              -> {bodyType : MTy lvl}
-             -> (desc : SystemFoo ctxt (NewtypeTy type))
+             -> (desc : SystemFoo ctxt     (NewtypeTy type))
              -> (body : SystemFoo (ctxt += (NewtypeTy type)) bodyType)
                      -> SystemFoo ctxt                       bodyType
 
@@ -176,9 +176,13 @@ namespace Renaming
          -> SystemFoo new type)
 
   -- STLC
-  rename f (Var idx)        = Var (f idx)
-  rename f (Func body)      = Func (rename (weaken f) body)
-  rename f (App func param) = App (rename f func) (rename f param)
+  rename f (Var idx) = Var (f idx)
+
+  rename f (Func ty body prf)
+    = Func (rename f ty) (rename (weaken f) body) prf
+
+  rename f (App func param)
+    = App (rename f func) (rename f param)
 
   -- Type Constructors
   rename f TyInt               = TyInt
@@ -206,10 +210,8 @@ namespace Renaming
               (rename (weaken f) body)
 
   -- Binders
-  rename f (Let type value prf body)
-      = Let (rename f type)
-            (rename f value)
-            prf
+  rename f (Let expr body)
+      = Let (rename f expr)
             (rename (weaken f) body)
 
   rename f (NewType type body)
@@ -246,8 +248,13 @@ namespace Substitution
                    -> SystemFoo new type)
 
     -- STLC
-    subst f (Var idx)      = f idx
-    subst f (Func body)    = Func (subst (weakens f) body)
+    subst f (Var idx) = f idx
+
+    subst f (Func type body prf)
+      = Func (subst f type)
+             (subst (weakens f) body)
+             prf
+
     subst f (App func var) = App (subst f func) (subst f var)
 
     -- Types
@@ -275,10 +282,8 @@ namespace Substitution
     subst f (TyCTor desc) = TyCTor (subst f desc)
 
     -- Bindings
-    subst f (Let type value prf body)
-        = Let (subst f type)
-              (subst f value)
-              prf
+    subst f (Let expr body)
+        = Let (subst f expr)
               (subst (weakens f) body)
 
     subst f (NewType desc body)
@@ -313,7 +318,7 @@ namespace Values
   public export
   data Value : SystemFoo ctxt type -> Type where
     FuncV : {body : SystemFoo (ctxt += paramTy) bodyTy}
-                 -> Value (Func body)
+                 -> Value (Func type body prf)
 
     TyCharV : Value TyChar
     TyIntV : Value TyInt
@@ -348,9 +353,9 @@ namespace Reduction
                                       -> Redux (App func this)
                                                (App func that)
 
-      ReduceFunc : (prf : Value var)
-                       -> Redux (App (Func body) var)
-                                (subst var body)
+      ReduceFuncApp : (value : Value var)
+                            -> Redux (App (Func type body prf) var)
+                                     (subst var body)
 
       -- Simplify Function Types
       SimplifyTyFuncParam : (param : Redux this that)
@@ -414,28 +419,16 @@ namespace Reduction
                                           (subst value body)
 
       -- Let binding
-      SimplifyLetType : {this, that : SystemFoo ctxt typeM}
-                     -> {value : SystemFoo ctxt typeV}
-                     -> {body : SystemFoo (ctxt += typeV) typeB}
-                     -> (type : Redux this that)
-                             -> Redux (Let this value prf body)
-                                      (Let that value prf body)
-
-      SimplifyLetValue : {type : SystemFoo ctxt typeM}
-                      -> {this, that : SystemFoo ctxt typeV}
+      SimplifyLetValue : {this, that : SystemFoo ctxt typeV}
                       -> {body : SystemFoo (ctxt += typeV) typeB}
-                      -> (typeVal : Value type)
                       -> (value   : Redux this that)
-                                 -> Redux (Let type this prf body)
-                                          (Let type that prf body)
+                                 -> Redux (Let this body)
+                                          (Let that body)
 
-      ReduceLetBody : {type  : SystemFoo ctxt typeM}
-                   -> {value : SystemFoo ctxt typeV}
-                   -> {0 prf : TyCheck typeM typeV}
-                   -> {body : SystemFoo (ctxt += typeV) typeB}
-                   -> (typeVal  : Value type)
+      ReduceLetBody : {value : SystemFoo ctxt typeV}
+                   -> {body  : SystemFoo (ctxt += typeV) typeB}
                    -> (valueVal : Value value)
-                               -> Redux (Let type value prf body)
+                               -> Redux (Let value body)
                                         (subst value body)
 
       -- Newtypes
@@ -482,11 +475,13 @@ namespace Progress
           -> Progress term
   -- STLC
   progress {type} (Var _) impossible
-  progress (Func body) = Done FuncV
+
+  progress (Func type body prf) = Done FuncV
+
   progress (App func var) with (progress func)
     progress (App func var) | (Done prfF) with (progress var)
-      progress (App (Func b) var) | (Done prfF) | (Done prfV)
-        = Step (ReduceFunc prfV {body=b})
+      progress (App (Func ty b prf) var) | (Done prfF) | (Done prfV)
+        = Step (ReduceFuncApp prfV {body=b})
       progress (App func var) | (Done prfF) | (Step prfV)
         = Step (SimplifyFuncAppVar prfF prfV)
     progress (App func var) | (Step prfF)
@@ -539,15 +534,11 @@ namespace Progress
       = Step (SimplifyMatchScrut prfS)
 
   -- Binders
-  progress (Let type value prf body) with (progress type)
-    progress (Let type value prf body) | (Done valueT) with (progress value)
-      progress (Let type value prf body) | (Done valueT) | (Done valueV)
-        = Step (ReduceLetBody valueT valueV)
-      progress (Let type value prf body) | (Done valueT) | (Step prfV)
-        = Step (SimplifyLetValue valueT prfV)
-    progress (Let type value prf body) | (Step stepT)
-      = Step (SimplifyLetType stepT)
-
+  progress (Let value body) with (progress value)
+      progress (Let value body) | (Done valueV)
+        = Step (ReduceLetBody valueV)
+      progress (Let value body) | (Step prfV)
+        = Step (SimplifyLetValue prfV)
 
   progress (NewType desc body) with (progress desc)
     progress (NewType desc body) | (Done valueD)
@@ -627,17 +618,17 @@ namespace Example
   example0 : SystemFoo Nil (FuncTy IntTy IntTy)
   example0 = TypeAlias TyInt
                        (The (TyFunc TyInt (Var Here))
-                            (Func (Var Here))
+                            (Func TyInt (Var Here) ChkInt)
                             (ChkFunc ChkInt ChkInt))
 
   export
   example1 : SystemFoo Nil CharTy
   example1 = NewType (TyCTor TyInt)
-                     (Let (TyFunc (Var Here) TyChar)
-                          (Func (Match (Var Here)
+                     (Let (Func (Var (Here))
+                                (Match (Var Here)
                                        (C 'c')
-                                       ))
-                          (ChkFunc (ChkNewtype ChkInt) ChkChar)
+                                       )
+                                (ChkNewtype ChkInt))
                           (App (Var Here)
                                (CTor (Var (There Here))
                                      (I 1)

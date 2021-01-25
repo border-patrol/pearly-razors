@@ -79,11 +79,11 @@ namespace DList
            -> Type
       where
         ||| The element is at the head of the list.
-        H : Elem a e x (x :: xs)
+        Here : Elem a e x (x :: xs)
 
         ||| The element is found in the tail of the list.
-        T : (rest : Elem a e x        xs)
-                 -> Elem a e x (x' :: xs)
+        There : (rest : Elem a e x        xs)
+                     -> Elem a e x (x' :: xs)
 
 
 -- --------------------------------------------------------------------- [ EOF ]

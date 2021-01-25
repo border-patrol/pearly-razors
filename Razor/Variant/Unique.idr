@@ -36,18 +36,12 @@ namespace Context
   Context = DList Level Ty
 
   public export
-  Elem : (type : Ty level)
+  Elem : {level : Level}
+      -> {levels : List Level}
       -> (ctxt : Context levels)
+      -> (type : Ty level)
       -> Type
-  Elem = Elem Level Ty
-
-  public export
-  Contains : {level : Level}
-          -> {levels : List Level}
-          -> (ctxt : Context levels)
-          -> (type : Ty level)
-          -> Type
-  Contains ctxt type = Elem Level Ty type ctxt
+  Elem ctxt type = Elem Level Ty type ctxt
 
 namespace Terms
   mutual
@@ -111,7 +105,7 @@ namespace Terms
     public export
     data Variant : forall lvls, lvl . Context lvls -> Ty lvl -> Type where
       -- Let-Bindings & Variables
-      Var : Elem ty g -> Variant g ty
+      Var : Elem g ty -> Variant g ty
 
       Let : {expr : Ty levelE}
          -> {body : Ty levelB}
@@ -148,12 +142,12 @@ namespace Terms
 namespace Renaming
 
   public export
-  weaken : (f : Context.Contains old type
-             -> Context.Contains new type)
-        -> (Context.Contains (old += type') type
-         -> Context.Contains (new += type') type)
-  weaken func H = H
-  weaken func (T rest) = T (func rest)
+  weaken : (f : Context.Elem old type
+             -> Context.Elem new type)
+        -> (Context.Elem (old += type') type
+         -> Context.Elem (new += type') type)
+  weaken func Here = Here
+  weaken func (There rest) = There (func rest)
 
   mutual
     namespace Case
@@ -163,8 +157,8 @@ namespace Renaming
              . {old : Context levelsO}
             -> {new : Context levelsN}
             -> (forall level . {type : Ty level}
-                            -> Context.Contains old type
-                            -> Context.Contains new type)
+                            -> Context.Elem old type
+                            -> Context.Elem new type)
 
             -> ({type, body : Ty VALUE} -> Case old label type body
                                       -> Case new label type body)
@@ -178,8 +172,8 @@ namespace Renaming
             -> {new : Context levelsN}
             -> (f : forall level
                   . {type : Ty level}
-                          -> Context.Contains old type
-                          -> Context.Contains new type)
+                          -> Context.Elem old type
+                          -> Context.Elem new type)
 
             -> (forall types . Cases old types type
                             -> Cases new types type)
@@ -196,8 +190,8 @@ namespace Renaming
              . {old : Context levelsO}
             -> {new : Context levelsN}
             -> (f : forall level . {type : Ty level}
-                                 -> Context.Contains old type
-                                 -> Context.Contains new type)
+                                 -> Context.Elem old type
+                                 -> Context.Elem new type)
             -> (forall types . Fields old types
                             -> Fields new types)
 
@@ -217,8 +211,8 @@ namespace Renaming
            . {old : Context levelsO}
           -> {new : Context levelsN}
           -> (f : forall level . {type : Ty level}
-                              -> Context.Contains old type
-                              -> Context.Contains new type)
+                              -> Elem old type
+                              -> Elem new type)
           -> (forall level . {type : Ty level}
                            -> Variant old type
                            -> Variant new type)
@@ -251,12 +245,12 @@ namespace Substitution
          -> {new   : Context levelsN}
          -> {type  : Ty level}
          -> {type' : Ty level'}
-         -> (f     : Context.Contains old type
-                  -> Variant          new type)
-         -> (Context.Contains (old += type') type
-                   -> Variant (new += type') type)
-  weakens func H        = Var H
-  weakens func (T rest) = rename T (func rest)
+         -> (f     : Elem    old type
+                  -> Variant new type)
+                  -> (Elem   (old += type') type
+                  -> Variant (new += type') type)
+  weakens func Here        = Var Here
+  weakens func (There rest) = rename There (func rest)
 
 
   namespace General
@@ -268,8 +262,8 @@ namespace Substitution
              -> {new : Context levelsN}
              -> (f : forall level
                     . {type : Ty level}
-                    -> Context.Contains old type
-                    -> Variant          new type)
+                    -> Elem    old type
+                    -> Variant new type)
 
              -> (forall types . Fields old types
                              -> Fields new types)
@@ -291,10 +285,10 @@ namespace Substitution
              -> {new : Context levelsN}
              -> (f : forall level
                    . {type : Ty level}
-                   -> Context.Contains old type
-                   -> Variant          new type)
+                   -> Elem    old type
+                   -> Variant new type)
              -> ({type, body : Ty VALUE} -> Case old label type body
-                                       -> Case new label type body)
+                                         -> Case new label type body)
         subst f (MkCase label branch)
           = MkCase label (subst (weakens f) branch)
 
@@ -305,8 +299,8 @@ namespace Substitution
              -> {new : Context levelsN}
              -> (f : forall level
                    . {type : Ty level}
-                   -> Context.Contains old type
-                   -> Variant          new type)
+                   -> Elem    old type
+                   -> Variant new type)
              -> (forall types . Cases old types type
                              -> Cases new types type)
         subst f (Singleton branch) =
@@ -320,8 +314,8 @@ namespace Substitution
            -> {new : Context levelsN}
            -> (f : forall level
                  . {type : Ty level}
-                 -> Context.Contains old type
-                 -> Variant          new type)
+                 -> Elem    old type
+                 -> Variant new type)
            -> (forall level . {type : Ty level}
                             -> Variant old type
                             -> Variant new type)
@@ -353,11 +347,11 @@ namespace Substitution
     apply : forall levelA, levelB
           . {typeA  : Ty levelA}
          -> {typeB  : Ty levelB}
-         -> (this   : Variant   ctxt           typeB)
-         -> (idx    : Contains (ctxt += typeB) typeA)
-                   -> Variant   ctxt           typeA
-    apply this H        = this
-    apply this (T rest) = Var rest
+         -> (this   : Variant  ctxt           typeB)
+         -> (idx    : Elem    (ctxt += typeB) typeA)
+                   -> Variant  ctxt           typeA
+    apply this Here         = this
+    apply this (There rest) = Var rest
 
     public export
     subst : forall levelA, levelB
@@ -727,14 +721,14 @@ namespace Example
 
   public export
   icc : Variant Nil (TyVariant [("int", TyInt), ("char", TyChar)])
-  icc = Let iciTy $ Tag "char" (C 'c') (Var (H)) (There Here)
+  icc = Let iciTy $ Tag "char" (C 'c') (Var Here) (There Here)
 
   public export
   iciM : Variant Nil TyInt
-  iciM = Match ici (Extend            (MkCase "int"  (Var (H)))
+  iciM = Match ici (Extend            (MkCase "int"  (Var Here))
                            (Singleton (MkCase "char" (I 2))))
 
   public export
   iccM : Variant Nil TyInt
-  iccM = Match icc (Extend            (MkCase "int"  (Var (H)))
+  iccM = Match icc (Extend            (MkCase "int"  (Var Here))
                            (Singleton (MkCase "char" (I 2))))

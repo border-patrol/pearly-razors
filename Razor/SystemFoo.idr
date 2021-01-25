@@ -69,8 +69,8 @@ namespace Types
   Context = DList Level MTy
 
   public export
-  Contains : Context lvls -> MTy level -> Type
-  Contains g ty = Elem Level MTy ty g
+  Elem : Context lvls -> MTy level -> Type
+  Elem g ty = Elem Level MTy ty g
 
 namespace Terms
 
@@ -157,19 +157,19 @@ namespace Terms
 namespace Renaming
 
   public export
-  weaken : (func : Types.Contains old type
-                -> Types.Contains new type)
-        -> (Contains (old += type') type
-         -> Types.Contains (new += type') type)
+  weaken : (func : Types.Elem old type
+                -> Types.Elem new type)
+        -> (Elem (old += type') type
+         -> Types.Elem (new += type') type)
 
-  weaken func H = H
-  weaken func (T rest) = T (func rest)
+  weaken func Here = Here
+  weaken func (There rest) = There (func rest)
 
   public export
   rename : (f : {level : Level}
              -> {type  : MTy level}
-                      -> Types.Contains old type
-                      -> Types.Contains new type)
+                      -> Types.Elem old type
+                      -> Types.Elem new type)
         -> ({level : Level}
          -> {type : MTy level}
          -> SystemFoo old type
@@ -224,21 +224,21 @@ namespace Substitution
   public export
   weakens : (f : {level : Level}
               -> {type  : MTy level}
-                       -> Types.Contains old type
+                       -> Types.Elem old type
                        -> SystemFoo new type)
          -> ({level : Level}
           -> {type  : MTy level}
-                   -> Types.Contains (old += type') type
+                   -> Types.Elem (old += type') type
                    -> SystemFoo (new += type') type)
-  weakens f H = Var H
-  weakens f (T rest) = rename T (f rest)
+  weakens f Here = Var Here
+  weakens f (There rest) = rename There (f rest)
 
   -- general substitute
   namespace General
     public export
     subst : (f : {level : Level}
               -> {type  : MTy level}
-                       -> Types.Contains old type
+                       -> Types.Elem old type
                        -> SystemFoo new type)
          -> ({level : Level}
           -> {type  : MTy level}
@@ -292,10 +292,10 @@ namespace Substitution
     apply : {levelA : Level}
          -> {typeA  : MTy levelA}
          -> (this   : SystemFoo ctxt typeB)
-         -> (idx    : Contains (ctxt += typeB) typeA)
+         -> (idx    : Elem (ctxt += typeB) typeA)
                    -> SystemFoo ctxt typeA
-    apply this H = this
-    apply this (T rest) = Var rest
+    apply this Here = this
+    apply this (There rest) = Var rest
 
     public export
     subst : {levelA,levelB : Level}
@@ -626,20 +626,20 @@ namespace Example
   export
   example0 : SystemFoo Nil (FuncTy IntTy IntTy)
   example0 = TypeAlias TyInt
-                       (The (TyFunc TyInt (Var H))
-                            (Func (Var (H)))
+                       (The (TyFunc TyInt (Var Here))
+                            (Func (Var Here))
                             (ChkFunc ChkInt ChkInt))
 
   export
   example1 : SystemFoo Nil CharTy
   example1 = NewType (TyCTor TyInt)
-                     (Let (TyFunc (Var H) TyChar)
-                          (Func (Match (Var H)
+                     (Let (TyFunc (Var Here) TyChar)
+                          (Func (Match (Var Here)
                                        (C 'c')
                                        ))
                           (ChkFunc (ChkNewtype ChkInt) ChkChar)
-                          (App (Var H)
-                               (CTor (Var (T H))
+                          (App (Var Here)
+                               (CTor (Var (There Here))
                                      (I 1)
                                      ChkInt)
                                )

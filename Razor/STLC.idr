@@ -362,4 +362,78 @@ namespace Example
   example1 : STLC Nil (FuncTy BoolTy BoolTy)
   example1 = (Func TyBool True ChkBool)
 
+  export
+  id : STLC Nil (FuncTy BoolTy BoolTy)
+  id = (Func TyBool (Var Here) ChkBool)
+
+  public export
+  CBool : MTy VALUE
+  CBool = FuncTy (FuncTy BoolTy BoolTy)
+                 (FuncTy BoolTy BoolTy)
+
+  public export
+  TyCBool : STLC ctxt (FuncTy (FuncTy BoolTyDesc BoolTyDesc)
+                              (FuncTy BoolTyDesc BoolTyDesc))
+  TyCBool = TyFunc (TyFunc TyBool TyBool) (TyFunc TyBool TyBool)
+
+  export
+  zero : STLC ctxt CBool
+  zero = Func (TyFunc TyBool TyBool)
+              (Func TyBool
+                    (Var Here)
+                    ChkBool)
+              (ChkFunc ChkBool ChkBool)
+
+  export
+  one : STLC ctxt CBool
+  one = Func (TyFunc TyBool TyBool)
+              (Func TyBool
+                    (App (Var (There Here)) (Var Here))
+                    ChkBool)
+              (ChkFunc ChkBool ChkBool)
+
+  export
+  two : STLC ctxt CBool
+  two = Func (TyFunc TyBool TyBool)
+             (Func TyBool
+                   (App (Var (There Here))
+                        (App (Var (There Here)) (Var Here)))
+                   ChkBool)
+             (ChkFunc ChkBool ChkBool)
+
+  export
+  succ : STLC ctxt (FuncTy CBool CBool)
+  succ = Func TyCBool
+              (Func (TyFunc TyBool TyBool)
+                    (Func TyBool
+                          ((Var (There Here)) `App`
+                               (((Var (There (There Here))) `App`
+                                         (Var (There Here))) `App`
+                                    (Var Here)))
+                          ChkBool)
+                    (ChkFunc ChkBool ChkBool))
+              (ChkFunc (ChkFunc ChkBool ChkBool)
+                       (ChkFunc ChkBool ChkBool))
+
+  export
+  plus : STLC Nil (CBool `FuncTy` (CBool `FuncTy` CBool))
+  plus = Func TyCBool
+              (Func TyCBool
+                    (Func (TyFunc TyBool TyBool)
+                          (Func TyBool
+                                (App (App (Var (There (There (There Here))))
+                                          (Var (There Here)))
+                                     (App (App (Var (There (There Here))) (Var (There Here)))
+                                          (Var Here)))
+                                ChkBool
+                          )
+                          (ChkFunc ChkBool ChkBool)
+                    )
+
+                    (ChkFunc (ChkFunc ChkBool ChkBool)
+                             (ChkFunc ChkBool ChkBool))
+              )
+              (ChkFunc (ChkFunc ChkBool ChkBool)
+                       (ChkFunc ChkBool ChkBool))
+
 -- --------------------------------------------------------------------- [ EOF ]

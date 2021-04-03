@@ -24,11 +24,36 @@ namespace Types
 
   public export
   data Ty : Level -> Type where
-    TyInt  : Ty VALUE
-    TyChar : Ty VALUE
-    TyVariant : (fields : Vect (S n) (Pair String (Ty VALUE))) -> Ty VALUE
+    IntTyDesc : Ty TYPE
+    IntTy     : Ty VALUE
 
-    TyVariantDecl : (fields : Vect (S n) (Pair String (Ty VALUE))) -> Ty TYPE
+    CharTyDesc : Ty TYPE
+    CharTy     : Ty VALUE
+
+    VariantTyDesc : (fields : Vect (S n) (Ty TYPE))  -> Ty TYPE
+    VariantTy     : (fields : Vect (S n) (Ty VALUE)) -> Ty VALUE
+
+  public export
+  data TyCheckVariant : (prfTy : (desc : Ty TYPE) -> (type : Ty VALUE) -> Type)
+                     -> (fieldsD : Vect (S n) (Ty TYPE))
+                     -> (fieldsV : Vect (S n) (Ty VALUE))
+                                -> Type
+    where
+      CheckOne  : (prf : check type value) -> TyCheckVariant check [type] [value]
+      CheckRest : (one  : check type value)
+               -> (rest : TyCheckVariant check        types          values)
+                       -> TyCheckVariant check (type::types) (value::values)
+
+
+  public export
+  data TyCheck : (desc : Ty TYPE)
+              -> (type : Ty VALUE)
+                      -> Type
+    where
+      CheckInt  : TyCheck IntTyDesc  IntTy
+      CheckChar : TyCheck CharTyDesc CharTy
+      CheckVar  : (prf : TyCheckVariant TyCheck types values)
+                      -> TyCheck (VariantTyDesc types) (VariantTy values)
 
 namespace Context
   public export
@@ -49,57 +74,53 @@ namespace Terms
     namespace Patterns
       public export
       data Case : (ctxt  : Context levels)
-               -> (label : String)
                -> (type  : Ty VALUE)
-               -> (body  : Ty VALUE)
+               -> (body  : Ty level)
                -> Type
         where
-          MkCase : {type, body : Ty VALUE}
-                -> (label  : String)
+          MkCase : {type : Ty VALUE}
+                -> {body : Ty level}
                 -> (branch : Variant (ctxt +=    type) body)
-                          -> Case     ctxt label type  body
+                          -> Case     ctxt       type  body
 
       public export
       data Cases : (ctxt  : Context levels)
-                -> (types : Vect (S n) (Pair String (Ty VALUE)))
-                -> (body  : Ty VALUE)
+                -> (types : Vect (S n) (Ty VALUE))
+                -> (body  : Ty level)
                 -> Type
         where
-            Singleton : {type, body : Ty VALUE}
-                     -> (branch : Case  ctxt   label  type   body)
-                               -> Cases ctxt [(label, type)] body
+            Singleton : {type : Ty VALUE}
+                     -> {body : Ty level}
+                     -> (branch : Case  ctxt  type   body)
+                               -> Cases ctxt [type] body
 
-            Extend : {type, body : Ty VALUE}
-                  -> (branch : Case ctxt   label  type          body)
-                  -> (rest   : Cases ctxt                   kvs  body)
-                            -> Cases ctxt ((label, type) :: kvs) body
+            Extend :  {type : Ty VALUE}
+                   -> {body : Ty level}
+                   -> (branch : Case  ctxt   type         body)
+                   -> (rest   : Cases ctxt          kvs  body)
+                             -> Cases ctxt (type :: kvs) body
 
     namespace Delcarations
       public export
       data Field : (ctxt  : Context levels)
-                -> (label : String)
-                -> (type  : Ty VALUE)
+                -> (type  : Ty TYPE)
                 -> Type
         where
-          MkField : {type' : Ty VALUE}
-                 -> (label : String)
-                 -> (desc  : Variant ctxt type')
-                          -> Field ctxt label type'
-          MkPrim : (label : String)
-                -> (type' : Ty VALUE)
-                         -> Field ctxt label type'
+          MkField : {type : Ty TYPE}
+                 -> (desc : Variant ctxt type)
+                         -> Field   ctxt type
 
       public export
       data Fields : (ctxt : Context levels)
-                 -> (kvs  : Vect (S n) (Pair String (Ty VALUE)))
+                 -> (kvs  : Vect (S n) (Ty TYPE))
                  -> Type
         where
-          Singleton : (field : Field  ctxt   label  type)
-                            -> Fields ctxt [(label, type)]
+          Singleton : (field : Field  ctxt  type)
+                            -> Fields ctxt [type]
 
-          Extend : (field : Field ctxt             label  type)
+          Extend : (field : Field  ctxt            type)
                 -> (rest  : Fields ctxt  fields)
-                         -> Fields ctxt (fields += (label, type))
+                         -> Fields ctxt (fields += type)
 
 
     public export
@@ -114,29 +135,32 @@ namespace Terms
                      -> Variant        g  body
 
       -- Base Values
-      I : Int -> Variant g TyInt
-      C : Char -> Variant g TyChar
+      I : Int  -> Variant g IntTy
+      C : Char -> Variant g CharTy
 
-      -- Variant Type Constructors
-      VariantTy : {kvs : Vect (S n) (Pair String (Ty VALUE))}
+      -- Type Constructors
+      TyInt  : Variant g IntTyDesc
+      TyChar : Variant g CharTyDesc
+
+      TyVariant : {kvs : Vect (S n) (Ty TYPE)}
                -> (fields : Fields   g                kvs)
-                         -> Variant  g (TyVariantDecl kvs)
+                         -> Variant  g (VariantTyDesc kvs)
 
       -- Variant Value Constructors
-      Tag : {ty : Ty VALUE}
-         -> {kvs : Vect (S n) (Pair String (Ty VALUE))}
-         -> (label : String)
+      Tag : {ty    : Ty VALUE}
+         -> {types  : Vect (S n) (Ty TYPE)}
+         -> {values : Vect (S n) (Ty VALUE)}
          -> (value : Variant g ty)
-         -> (type  : Variant g (TyVariantDecl kvs))
-         -> (prf   : Elem (label, ty)         kvs)
-                  -> Variant g (TyVariant     kvs)
+         -> (type  : Variant g (VariantTyDesc types))
+         -> (chk   : TyCheck   (VariantTyDesc types) (VariantTy values))
+         -> (prf   : Elem       ty         values)
+                  -> Variant g (VariantTy  values)
 
       -- Variant Matching
-      Match : {kvs : Vect (S n) (Pair String (Ty VALUE))}
-           -> {b : Ty VALUE}
-           -> (value : Variant g (TyVariant kvs))
-           -> (cases : Cases   g            kvs   b)
-                    -> Variant g                  b
+      Match : {values : Vect (S n) (Ty VALUE)}
+           -> (value : Variant g (VariantTy values))
+           -> (cases : Cases   g            values   b)
+                    -> Variant g                     b
 
 
 namespace Renaming
@@ -160,10 +184,11 @@ namespace Renaming
                             -> Context.Elem old type
                             -> Context.Elem new type)
 
-            -> ({type, body : Ty VALUE} -> Case old label type body
-                                      -> Case new label type body)
-      rename f (MkCase label branch)
-        = MkCase label (rename (weaken f) branch)
+            -> ({type : Ty VALUE} ->
+                {body : Ty level} -> Case old type body
+                                  -> Case new type body)
+      rename f (MkCase branch)
+        = MkCase (rename (weaken f) branch)
 
     namespace Cases
       public export
@@ -195,15 +220,11 @@ namespace Renaming
             -> (forall types . Fields old types
                             -> Fields new types)
 
-      rename f (Singleton (MkField label first))
-        = Singleton (MkField label (rename f first))
-      rename f (Singleton (MkPrim label first))
-        = Singleton (MkPrim label first)
+      rename f (Singleton (MkField first))
+        = Singleton (MkField (rename f first))
 
-      rename f (Extend (MkPrim label next) rest)
-        = Extend (MkPrim label next) (rename f rest)
-      rename f (Extend (MkField label next) rest)
-        = Extend (MkField label (rename f next)) (rename f rest)
+      rename f (Extend (MkField next) rest)
+        = Extend (MkField (rename f next)) (rename f rest)
 
 
     public export
@@ -225,12 +246,14 @@ namespace Renaming
     rename f (I x) = I x
     rename f (C x) = C x
 
-    -- Variant Type Constructors
-    rename f (VariantTy fields) = VariantTy (rename f fields)
+    -- Type Constructors
+    rename f (TyInt)  = TyInt
+    rename f (TyChar) = TyChar
+    rename f (TyVariant fields) = TyVariant (rename f fields)
 
     -- Variant Value Constructors
-    rename f (Tag label value type prf)
-      = Tag label (rename f value) (rename f type) prf
+    rename f (Tag value type chk prf)
+      = Tag (rename f value) (rename f type) chk prf
 
     -- Variant Matching
     rename f (Match value cases)
@@ -268,14 +291,11 @@ namespace Substitution
              -> (forall types . Fields old types
                              -> Fields new types)
 
-        subst f (Singleton (MkField label desc))
-          = Singleton (MkField label (subst f desc))
-        subst f (Singleton (MkPrim  label desc))
-          = Singleton (MkPrim label desc)
-        subst f (Extend (MkField label desc) rest)
-          = Extend (MkField label (subst f desc)) (subst f rest)
-        subst f (Extend (MkPrim label desc) rest)
-          = Extend (MkPrim label desc) (subst f rest)
+        subst f (Singleton (MkField desc))
+          = Singleton (MkField (subst f desc))
+
+        subst f (Extend (MkField desc) rest)
+          = Extend (MkField (subst f desc)) (subst f rest)
 
 
       namespace Case
@@ -287,10 +307,11 @@ namespace Substitution
                    . {type : Ty level}
                    -> Elem    old type
                    -> Variant new type)
-             -> ({type, body : Ty VALUE} -> Case old label type body
-                                         -> Case new label type body)
-        subst f (MkCase label branch)
-          = MkCase label (subst (weakens f) branch)
+             -> ({type : Ty VALUE} ->
+                 {body : Ty level} -> Case old type body
+                                   -> Case new type body)
+        subst f (MkCase branch)
+          = MkCase (subst (weakens f) branch)
 
       namespace Cases
         public export
@@ -329,13 +350,16 @@ namespace Substitution
       subst f (I x) = I x
       subst f (C x) = C x
 
-      -- Variant Type Constructors
-      subst f (VariantTy fields)
-        = VariantTy (subst f fields)
+      -- Type Constructors
+      subst f TyInt  = TyInt
+      subst f TyChar = TyChar
+
+      subst f (TyVariant fields)
+        = TyVariant (subst f fields)
 
       -- Variant Value Constructors
-      subst f (Tag label value type prf)
-        = Tag label (subst f value) (subst f type) prf
+      subst f (Tag value type chk prf)
+        = Tag (subst f value) (subst f type) chk prf
 
       -- Variant Matching
       subst f (Match value cases)
@@ -368,68 +392,80 @@ namespace Values
   mutual
     namespace Field
       public export
-      data Value : (field : Field g label type) -> Type where
-          MkFieldV : (prf : Value field)
-                         -> Value (MkField label field)
-
-          MkPrimV : Value (MkPrim label type)
+      data Value : (field : Field g type) -> Type where
+          MkField : (prf : Value field)
+                        -> Value (MkField field)
 
     namespace Fields
       public export
       data Value : (fields : Fields g types) -> Type where
-          SingletonV : {field : Field g label type}
-                    -> (prf   : Value field)
-                             -> Value (Singleton field)
+          Singleton : {field : Field g type}
+                   -> (prf   : Value field)
+                            -> Value (Singleton field)
 
-          ExtendV : {field  : Field  g label type}
-                 -> {fields : Fields g kvs}
-                 -> (prf    : Field.Value field)
-                 -> (rest   : Fields.Value fields)
-                           -> Value (Extend field fields)
+          Extend : {field  : Field  g type}
+                -> {fields : Fields g kvs}
+                -> (prf    : Field.Value field)
+                -> (rest   : Fields.Value fields)
+                          -> Value (Extend field fields)
     public export
     data Value : Variant ctxt type -> Type where
       -- Base Values
-      IV : Value (I i)
-      CV : Value (C c)
+      I : Value (I i)
+      C : Value (C c)
 
 
-      -- Variant Type Constructors
-      VariantTyV : Value fields
-                -> Value (VariantTy fields)
+      -- Type Constructors
+      TyInt     : Value TyInt
+      TyChar    : Value TyChar
+
+      TyVariant : Value fields
+               -> Value (TyVariant fields)
+
 
       -- Variant Value Constructors
-      TagV : {kvs    : Vect (S n) (Pair String (Ty VALUE))}
-          -> {mtype  : Ty VALUE}
-          -> {value  : Variant g mtype}
-          -> {type   : Variant g (TyVariantDecl kvs)}
-          -> (prfV   : Value value)
-          -> (prfT   : Value type)
-          -> {idx    : Elem (label, mtype) kvs}
-                    -> Value (Tag label value type idx)
+      Tag : {types  : Vect (S n) (Ty TYPE)}
+         -> {type   : Variant g (VariantTyDesc types)}
+
+         -> {values : Vect (S n) (Ty VALUE)}
+
+         -> {chk    : TyCheck (VariantTyDesc types) (VariantTy values)}
+
+         -> {value  : Variant g value_type}
+
+         -> {idx    : Elem value_type values}
+
+         -> (prfT   : Value type)
+         -> (prfV   : Value value)
+
+                   -> Value (Tag value type chk idx)
+
 
 namespace Reduction
 
   namespace Cases
     public export
     data Redux : (value  : Variant g type)
-              -> (cases  : Cases g kvs body)
-              -> (idx    : Elem (label, type) kvs)
+              -> (cases  : Cases g types body)
+              -> (idx    : Elem type types)
               -> (result : Variant g body)
               -> Type
       where
         ReduceSingleton : {value : Variant g type}
+                       -> {branch : Variant (type::g) type'}
                        -> Value value
                        -> Redux value
-                                (Singleton (MkCase label branch))
+                                (Singleton (MkCase branch))
                                 Here
                                 (subst value branch)
         ReduceExtend : {value : Variant g type}
-                    -> {rest : Cases g kvs body}
+                    -> {rest : Cases g types body}
                     -> Value value
                     -> Redux value
-                             (Extend (MkCase label branch) rest)
+                             (Extend (MkCase branch) rest)
                              Here
                              (subst value branch)
+
         SkipThis : Redux value rest later result
                 -> Redux value
                          (Extend branch rest)
@@ -439,27 +475,26 @@ namespace Reduction
   mutual
     namespace Field
       public export
-      data Redux : (this, that : Field ctxt label type) -> Type where
-          SimplifyField : {label : String}
-                       -> {this, that : Variant g type}
+      data Redux : (this, that : Field ctxt type) -> Type where
+          SimplifyField :{this, that : Variant g type}
                        -> (prf : Redux this that)
-                       -> Redux (MkField label this) (MkField label that)
+                       -> Redux (MkField this) (MkField that)
 
     namespace Fields
       public export
       data Redux : (this, that : Fields g types) -> Type where
-          SimplifySingleton : {this, that : Field g label type}
+          SimplifySingleton : {this, that : Field g type}
                            -> (prf : Redux this that)
                                   -> Redux (Singleton this) (Singleton that)
 
-          SimplifyExtendValue : {this, that : Field  g label type}
+          SimplifyExtendValue : {this, that : Field  g type}
                              -> {rest       : Fields g types}
                              -> (prf        : Redux this that)
                                            -> Redux (Extend this rest)
                                                     (Extend that rest)
 
           SimplifyExtendRest : {this, that : Fields ctxt types}
-                            -> {field      : Field ctxt label type}
+                            -> {field      : Field ctxt type}
                             -> (value      : Field.Value field)
                             -> (rest       : Redux this that)
                                           -> Redux (Extend field this)
@@ -481,44 +516,39 @@ namespace Reduction
                                     (subst value body)
 
       -- Variant Type Constructors
-      SimplifyVariantTy : Redux this that
-                       -> Redux (VariantTy this)
-                                (VariantTy that)
+      SimplifyTyVariant : Redux this that
+                       -> Redux (TyVariant this)
+                                (TyVariant that)
 
       -- Variant Value Constructors
-      SimplifyTagType : {kvs        : Vect (S n) (Pair String (Ty VALUE))}
-                     -> {this, that : Variant ctxt (TyVariantDecl kvs)}
-                     -> {value      : Variant ctxt type'}
-                     -> {idx        : Elem (label, type') kvs}
+      SimplifyTagType : {this, that : Variant ctxt (VariantTyDesc kvs)}
+                     -> {value      : Variant ctxt type}
                      -> (redux      : Redux this that)
-                                   -> Redux (Tag label value this idx)
-                                            (Tag label value that idx)
+                                   -> Redux (Tag value this chk idx)
+                                            (Tag value that chk idx)
 
-      SimplifyTagValue : {kvs        : Vect (S n) (Pair String (Ty VALUE))}
-                      -> {this, that : Variant ctxt type'}
-                      -> {type       : Variant ctxt (TyVariantDecl kvs)}
-                      -> {idx        : Elem (label, type') kvs}
+      SimplifyTagValue : {type       : Variant ctxt (VariantTyDesc types)}
                       -> (prfT       : Value type)
+                      -> {this, that : Variant ctxt type'}
                       -> (redux      : Redux this that)
-                                    -> Redux (Tag label this type idx)
-                                             (Tag label that type idx)
+                                    -> Redux (Tag this type chk idx)
+                                             (Tag that type chk idx)
 
       -- Variant Matching
       SimplifyMatchCase : {cases : Cases ctxt kvs type}
                        -> (redux : Redux this that)
                                 -> Redux (Match this cases) (Match that cases)
 
-      ReduceCases : {kvs   : Vect (S n) (Pair String (Ty VALUE))}
-                 -> {idx   : Elem (label, typeV) kvs}
-                 -> {value : Variant g typeV}
-                 -> {type  : Variant g (TyVariantDecl kvs)}
-                 -> {body  : Ty VALUE}
+      ReduceCases : {value : Variant g type_value}
+                 -> {type  : Variant g (VariantTyDesc types)}
+
                  -> {this  : Cases g kvs body}
                  -> {that  : Variant g body}
-                 -> (prfV   : Value value)
-                 -> (prfT   : Value type)
+
+                 -> (prfV  : Value value)
+                 -> (prfT  : Value type)
                  -> (redux : Redux value this idx that)
-                          -> Redux (Match (Tag label value type idx) this)
+                          -> Redux (Match (Tag value type chk idx) this)
                                    that
 
 namespace Progress
@@ -536,10 +566,10 @@ namespace Progress
 
   namespace Field
     public export
-    data Progress : (field : Field Nil label type) -> Type where
+    data Progress : (field : Field Nil type) -> Type where
       Done : (value : Value field) -> Progress field
 
-      Step : {this, that : Field Nil label type}
+      Step : {this, that : Field Nil type}
           -> (step       : Redux this that)
                         -> Progress this
 
@@ -554,18 +584,17 @@ namespace Progress
 
   namespace Cases
     public export
-    data Progress : (label : String)
-                 -> (value : Variant Nil type)
-                 -> (idx   : Elem (label, type) kvs)
+    data Progress : (value : Variant Nil type)
+                 -> (idx   : Elem type kvs)
                  -> (term  : Cases Nil kvs body)
                  -> Type
       where
         Step : {value : Variant Nil type'}
-            -> {idx   : Elem (label, type') kvs}
+            -> {idx   : Elem type' kvs}
             -> {cases : Cases Nil kvs type}
             -> {that  : Variant Nil type}
             -> (step  : Redux value cases idx that)
-                     -> Progress label value idx cases
+                     -> Progress value idx cases
 
   -- The body is defined later on.
   public export
@@ -574,24 +603,23 @@ namespace Progress
   mutual
     namespace Field
       public export
-      progress : (field : Field Nil label type) -> Progress field
-      progress (MkPrim label desc) = Done (MkPrimV)
-      progress (MkField label desc) with (Progress.progress desc)
-        progress (MkField label desc) | (Done value) = Done (MkFieldV value)
-        progress (MkField label desc) | (Step step) = Step (SimplifyField step)
+      progress : (field : Field Nil type) -> Progress field
+      progress (MkField desc) with (Progress.progress desc)
+        progress (MkField desc) | (Done value) = Done (MkField value)
+        progress (MkField desc) | (Step step) = Step (SimplifyField step)
 
 
     namespace Fields
       public export
       progress : (fields : Fields Nil types) -> Progress fields
       progress (Singleton field) with (Field.progress field)
-        progress (Singleton field) | (Done value) = Done (SingletonV value)
+        progress (Singleton field) | (Done value) = Done (Singleton value)
         progress (Singleton field) | (Step step)  = Step (SimplifySingleton step)
 
       progress (Extend field rest) with (Field.progress field)
         progress (Extend field rest) | (Done value) with (Fields.progress rest)
           progress (Extend field rest) | (Done value) | (Done values)
-            = Done (ExtendV value values)
+            = Done (Extend value values)
           progress (Extend field rest) | (Done value) | (Step step)
             = Step (SimplifyExtendRest value step)
         progress (Extend field rest) | (Step step)
@@ -600,14 +628,14 @@ namespace Progress
     namespace Cases
       public export
       progress : {value' : Variant Nil type}
-              -> (idx   : Elem (label, type) kvs)
+              -> (idx   : Elem type kvs)
               -> (value : Value value')
               -> (term  : Cases Nil kvs body)
-              -> Progress label value' idx term
-      progress Here value (Singleton (MkCase label branch))
+              -> Progress value' idx term
+      progress Here value (Singleton (MkCase branch))
         = Step (ReduceSingleton value)
 
-      progress Here value (Extend (MkCase label branch) rest)
+      progress Here value (Extend (MkCase branch) rest)
         = Step (ReduceExtend value)
 
       progress (There later) value (Extend branch rest) with (progress later value rest)
@@ -624,28 +652,31 @@ namespace Progress
       progress (Let this beInThis) | (Step step) = Step (SimplifyLetValue step)
 
     -- Base Value
-    progress (I x) = Done IV
-    progress (C x) = Done CV
+    progress (I x) = Done I
+    progress (C x) = Done C
 
-    -- Variant Type Constructors
-    progress (VariantTy fields) with (Fields.progress fields)
-      progress (VariantTy fields) | (Done value) = Done (VariantTyV value)
-      progress (VariantTy fields) | (Step step) = Step (SimplifyVariantTy step)
+    -- Variant Constructors
+    progress TyInt  = Done TyInt
+    progress TyChar = Done TyChar
+
+    progress (TyVariant fields) with (Fields.progress fields)
+      progress (TyVariant fields) | (Done value) = Done (TyVariant value)
+      progress (TyVariant fields) | (Step step) = Step (SimplifyTyVariant step)
 
     -- Variant Value Constructors
-    progress (Tag label field type prf) with (progress type)
-      progress (Tag label field type prf) | (Done valueT) with (progress field)
-        progress (Tag label field type prf) | (Done valueT) | (Done valueF)
-          = Done (TagV valueF valueT)
-        progress (Tag label field type prf) | (Done valueT) | (Step stepF)
+    progress (Tag field type chk prf) with (progress type)
+      progress (Tag field type chk prf) | (Done valueT) with (progress field)
+        progress (Tag field type chk prf) | (Done valueT) | (Done valueF)
+          = Done (Tag valueT valueF)
+        progress (Tag field type chk prf) | (Done valueT) | (Step stepF)
           = Step (SimplifyTagValue valueT stepF)
-      progress (Tag label field type prf) | (Step step)
+      progress (Tag field type chk prf) | (Step step)
         = Step (SimplifyTagType step)
 
     -- Variant Matching
     progress (Match field cases) with (progress field)
-      progress (Match (Tag label value t idx) cases) | (Done (TagV prfV prfT)) with (Cases.progress idx prfV cases)
-        progress (Match (Tag label value t idx) cases) | (Done (TagV prfV prfT)) | (Step step)
+      progress (Match (Tag label value t idx) cases) | (Done (Tag prfT prfV)) with (Cases.progress idx prfV cases)
+        progress (Match (Tag label value t idx) cases) | (Done (Tag prfT prfV)) | (Step step)
           = Step (ReduceCases prfV prfT step)
 
       progress (Match field cases) | (Step step) = Step (SimplifyMatchCase step)
@@ -709,26 +740,29 @@ run this with (compute forever this)
     = Just (Element term steps)
   run this | (RunEval steps OOF) = Nothing
 
+
 namespace Example
   public export
-  iciTy : Variant Nil (TyVariantDecl [("int", TyInt), ("char", TyChar)])
-  iciTy = VariantTy (Extend (MkPrim "int" TyInt) (Singleton (MkPrim "char" TyChar)))
-
-  public export
-  ici : Variant Nil (TyVariant [("int", TyInt), ("char", TyChar)])
-  ici = Tag "int" (I 1) iciTy (Here)
+  iciTy : Variant Nil (VariantTyDesc [IntTyDesc, CharTyDesc])
+  iciTy = TyVariant (Extend (MkField TyInt)
+                            (Singleton (MkField TyChar)))
 
 
   public export
-  icc : Variant Nil (TyVariant [("int", TyInt), ("char", TyChar)])
-  icc = Let iciTy $ Tag "char" (C 'c') (Var Here) (There Here)
+  ici : Variant Nil (VariantTy [IntTy, CharTy])
+  ici = Tag (I 1) iciTy (CheckVar (CheckRest CheckInt (CheckOne CheckChar))) Here
 
   public export
-  iciM : Variant Nil TyInt
-  iciM = Match ici (Extend            (MkCase "int"  (Var Here))
-                           (Singleton (MkCase "char" (I 2))))
+  icc : Variant Nil (VariantTy [IntTy, CharTy])
+  icc = Let iciTy (Tag (C 'c') (Var Here) (CheckVar (CheckRest CheckInt (CheckOne CheckChar))) (There Here))
+
 
   public export
-  iccM : Variant Nil TyInt
-  iccM = Match icc (Extend            (MkCase "int"  (Var Here))
-                           (Singleton (MkCase "char" (I 2))))
+  iciM : Variant Nil IntTy
+  iciM = Match ici (Extend            (MkCase (Var Here))
+                           (Singleton (MkCase (I 2))))
+
+  public export
+  iccM : Variant Nil IntTy
+  iccM = Match icc (Extend            (MkCase (Var Here))
+                           (Singleton (MkCase (I 2))))

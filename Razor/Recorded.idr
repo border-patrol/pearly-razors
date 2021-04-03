@@ -18,7 +18,7 @@ namespace Types
   public export
   data Ty = TyInt
           | TyChar
-          | TyRecord (Vect (S n) (Pair String Ty))
+          | TyRecord (Vect (S n) Ty)
 
 namespace Terms
 
@@ -26,26 +26,24 @@ namespace Terms
     ||| Field in a record.
     public export
     data Field : (g : List Ty)
-              -> (label : String)
               -> (type  : Ty)
               -> Type
       where
-        MkField : (label : String)
-               -> (value : Recorded g type)
-                        -> Field g label type
+        MkField : (value : Recorded g type)
+                        -> Field    g type
 
     ||| Record Fields.
     public export
     data Fields : (g : List Ty)
-               -> (types : Vect (S n) (Pair String Ty))
+               -> (types : Vect (S n) Ty)
                -> Type
       where
-        Singleton : (first : Field  g   label ty)
-                          -> Fields g ((label,ty)::Nil)
+        Singleton : (first : Field  g  ty)
+                          -> Fields g (ty::Nil)
 
-        Extend : (next : Field  g   label  ty)
-              -> (rest : Fields g               tys)
-                      -> Fields g ((label, ty)::tys)
+        Extend : (next : Field  g  ty)
+              -> (rest : Fields g      tys)
+                      -> Fields g (ty::tys)
 
     public export
     data Recorded : List Ty -> Ty -> Type where
@@ -62,23 +60,22 @@ namespace Terms
           C : Char -> Recorded g TyChar
 
           -- Records & Accessors
-          MkRecord : {types  : Vect (S n) (Pair String Ty)}
+          MkRecord : {types  : Vect (S n) Ty}
                   -> (values : Fields   g           types)
                             -> Recorded g (TyRecord types)
 
           Proj : {type : Ty}
-              -> {types : Vect (S n) (Pair String Ty)}
+              -> {types : Vect (S n) Ty}
               -> (rec   : Recorded g (TyRecord types))
-              -> (label : String)
-              -> (idx   : Elem (label, type) types)
+              -> (idx   : Elem type types)
                        -> Recorded g type
 
   public export
-  index : (idx    : Elem (label, type) types)
+  index : (idx    : Elem type types)
        -> (fields : Fields g types)
        -> Recorded g type
-  index Here (Singleton (MkField label value)) = value
-  index Here (Extend (MkField label value) rest) = value
+  index Here (Singleton (MkField value)) = value
+  index Here (Extend (MkField value) rest) = value
   index (There later) (Extend next rest) = index later rest
 
 namespace Renaming
@@ -95,10 +92,10 @@ namespace Renaming
       public export
       rename : (forall type  . Contains old type  -> Contains new type)
             -> (forall types . Fields   old types -> Fields   new types)
-      rename f (Singleton (MkField label first))
-        = Singleton (MkField label (rename f first))
-      rename f (Extend (MkField label next) rest)
-        = Extend (MkField label (rename f next)) (rename f rest)
+      rename f (Singleton (MkField first))
+        = Singleton (MkField (rename f first))
+      rename f (Extend (MkField next) rest)
+        = Extend (MkField (rename f next)) (rename f rest)
 
     public export
     rename : (forall type . Contains old type -> Contains new type)
@@ -115,7 +112,7 @@ namespace Renaming
 
     -- Records & Accessors
     rename f (MkRecord values) = MkRecord (rename f values)
-    rename f (Proj rec label idx) = Proj (rename f rec) label idx
+    rename f (Proj rec idx) = Proj (rename f rec) idx
 
 namespace Substitution
   public export
@@ -132,10 +129,10 @@ namespace Substitution
         public export
         subst : (f : forall type  . Contains old type  -> Recorded new type)
                  -> (forall types . Fields   old types -> Fields   new types)
-        subst f (Singleton (MkField label first))
-          = Singleton (MkField label (subst f first))
-        subst f (Extend (MkField label next) rest)
-          = Extend (MkField label (subst f next)) (subst f rest)
+        subst f (Singleton (MkField first))
+          = Singleton (MkField (subst f first))
+        subst f (Extend (MkField next) rest)
+          = Extend (MkField (subst f next)) (subst f rest)
 
       public export
       subst : (forall type . Contains old type -> Recorded new type)
@@ -152,7 +149,7 @@ namespace Substitution
 
       -- Records & Accesors
       subst f (MkRecord values) = MkRecord (subst f values)
-      subst f (Proj rec label idx) = Proj (subst f rec) label idx
+      subst f (Proj rec idx)    = Proj (subst f rec) idx
 
   namespace Single
     public export
@@ -174,32 +171,32 @@ namespace Values
   mutual
     namespace Field
       public export
-      data Value : (field  : Field g label type) -> Type
+      data Value : (field  : Field g type) -> Type
         where
-          MkFieldV : (prf : Value v)
-                         -> Value (MkField label v)
+          MkField : (prf : Value v)
+                        -> Value (MkField v)
 
     namespace Fields
       public export
       data Value : (fields : Fields g types) -> Type
         where
-          SingletonV : (field : Value value)
-                             -> Value (Singleton value)
+          Singleton : (field : Value value)
+                            -> Value (Singleton value)
 
-          ExtendV : {value  : Field g label type}
-                 -> {values : Fields g types}
-                 -> (next   : Value value)
-                 -> (rest   : Value values)
-                           -> Value (Extend value values)
+          Extend : {value  : Field g type}
+                -> {values : Fields g types}
+                -> (next   : Value value)
+                -> (rest   : Value values)
+                          -> Value (Extend value values)
 
     public export
     data Value : Recorded ctxt type -> Type where
       -- Base Values
-      IV : Value (I i)
-      CV : Value (C c)
+      I : Value (I i)
+      C : Value (C c)
 
       -- Records
-      MkRecordV : Value fields -> Value (MkRecord fields)
+      MkRecord : Value fields -> Value (MkRecord fields)
 
 
 namespace Reduction
@@ -207,13 +204,12 @@ namespace Reduction
   mutual
     namespace Field
       public export
-      data Redux : (this, that : Field ctxt label type) -> Type
+      data Redux : (this, that : Field ctxt type) -> Type
         where
-          SimplifyField : {label      : String}
-                       -> {this, that : Recorded g type}
+          SimplifyField : {this, that : Recorded g type}
                        -> (prf        : Redux this that)
-                                     -> Redux (MkField label this)
-                                              (MkField label that)
+                                     -> Redux (MkField this)
+                                              (MkField that)
 
     namespace Fields
       public export
@@ -223,14 +219,14 @@ namespace Reduction
                                   -> Redux (Singleton this)
                                            (Singleton that)
 
-          SimplifyExtend : {this, that : Field g label type}
+          SimplifyExtend : {this, that : Field g type}
                         -> {rest       : Fields g types}
                         -> (prf        : Redux this that)
                                       -> Redux (Extend this rest)
                                                (Extend that rest)
 
           SimplifyExtendV : {this, that : Fields ctxt types}
-                         -> {v          : Field ctxt label type}
+                         -> {v          : Field ctxt type}
                          -> (value      : Value v)
                          -> (rest       : Redux this that)
                                        -> Redux (Extend v this)
@@ -253,19 +249,18 @@ namespace Reduction
 
       -- Accessors
       SimplifyProj : {type       : Ty}
-                  -> {labels     : Vect (S n) (Pair String Ty)}
+                  -> {labels     : Vect (S n) Ty}
                   -> {this, that : Recorded g (TyRecord labels)}
-                  -> {idx        : Elem (label,type) labels}
+                  -> {idx        : Elem type labels}
                                 -> Redux this that
-                                -> Redux (Proj this label idx) (Proj that label idx)
+                                -> Redux (Proj this idx) (Proj that idx)
 
       ReduceProj : {type   : Ty}
-                -> {label  : String}
-                -> {types  : Vect (S n) (Pair String Ty)}
+                -> {types  : Vect (S n) Ty}
                 -> {fields : Fields g types}
-                -> {idx    : Elem (label,type) types}
+                -> {idx    : Elem type types}
                 -> (values : Value fields)
-                          -> Redux (Proj (MkRecord fields) label idx)
+                          -> Redux (Proj (MkRecord fields) idx)
                                    (index idx fields)
 
 namespace Progress
@@ -282,9 +277,9 @@ namespace Progress
 
   namespace Field
     public export
-    data Progress : (field : Field Nil label type) -> Type where
+    data Progress : (field : Field Nil type) -> Type where
       Done : Value field -> Progress field
-      Step : {this, that : Field Nil label type}
+      Step : {this, that : Field Nil type}
           -> (step       : Redux this that)
                         -> Progress this
 
@@ -301,12 +296,12 @@ namespace Progress
   mutual
     namespace Field
       public export
-      progress : (field : Field Nil label type)
+      progress : (field : Field Nil type)
               -> Progress field
-      progress (MkField label value) with (progress value)
-        progress(MkField label value) | (Done v)
-          = Done (MkFieldV v)
-        progress(MkField label value) | (Step step)
+      progress (MkField value) with (progress value)
+        progress(MkField value) | (Done v)
+          = Done (MkField v)
+        progress(MkField value) | (Step step)
           = Step (SimplifyField step)
 
     namespace Fields
@@ -314,7 +309,8 @@ namespace Progress
       progress : (fields : Fields Nil types)
               -> Progress fields
       progress (Singleton first) with (Field.progress first)
-        progress (Singleton first) | (Done x) = Done (SingletonV x)
+        progress (Singleton first) | (Done x)
+          = Done (Singleton x)
         progress (Singleton first) | (Step prf)
           = Step (SimplifySingleton prf)
 
@@ -322,11 +318,12 @@ namespace Progress
       progress (Extend next rest) with (progress next)
         progress (Extend next rest) | (Done x) with (progress rest)
           progress (Extend next rest) | (Done x) | (Done xs)
-            = Done (ExtendV x xs)
+            = Done (Extend x xs)
           progress (Extend next rest) | (Done x) | (Step prf)
             = Step (SimplifyExtendV x prf)
 
-        progress (Extend next rest) | (Step prf) = Step (SimplifyExtend prf)
+        progress (Extend next rest) | (Step prf)
+          = Step (SimplifyExtend prf)
 
     public export
     progress : forall type . (term : Recorded Nil type) -> Progress term
@@ -339,18 +336,18 @@ namespace Progress
         = Step (SimplifyLetValue prf)
 
     -- Base Values
-    progress (I x) = Done IV
-    progress (C x) = Done CV
+    progress (I x) = Done I
+    progress (C x) = Done C
 
     -- Records & Accessors
     progress (MkRecord values) with (progress values)
-      progress (MkRecord values) | (Done v)   = Done (MkRecordV v)
+      progress (MkRecord values) | (Done v)   = Done (MkRecord v)
       progress (MkRecord values) | (Step prf) = Step (SimplifyRecord prf)
 
-    progress (Proj rec label idx) with (progress rec)
-      progress (Proj (MkRecord fields) label idx) | (Done (MkRecordV fieldsV))
+    progress (Proj rec idx) with (progress rec)
+      progress (Proj (MkRecord fields) idx) | (Done (MkRecord fieldsV))
         = Step (ReduceProj fieldsV)
-      progress (Proj rec label idx) | (Step prf)
+      progress (Proj rec idx) | (Step prf)
         = Step (SimplifyProj prf)
 
 namespace Evaluation
@@ -413,14 +410,14 @@ run this with (compute forever this)
 namespace Examples
 
   public export
-  pairIC : Recorded Nil (TyRecord [("first", TyInt), ("second", TyChar)])
-  pairIC = MkRecord (Extend    (MkField "first"  (I 1))
-                    (Singleton (MkField "second" (C 'c'))))
+  pairIC : Recorded Nil (TyRecord [TyInt, (TyChar)])
+  pairIC = MkRecord (Extend    (MkField (I 1))
+                    (Singleton (MkField (C 'c'))))
 
   public export
   i : Recorded Nil TyInt
-  i = Proj pairIC "first" Here
+  i = Proj pairIC Here
 
   public export
   c : Recorded Nil TyChar
-  c = Proj pairIC "second" (There Here)
+  c = Proj pairIC (There Here)

@@ -6,4 +6,5 @@ modules = Razor.Common
         , Razor.Recorded
         , Razor.Variant
         , Razor.Variant.Unique
+        , Razor.LetFoo
         , Razor.SystemFoo

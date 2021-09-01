@@ -59,18 +59,25 @@ namespace Terms
                            -> Tupled g (TyTuple types)
 
           Proj : {types : Vect (S n) Ty}
+              -> (i     : Fin (S n))
               -> (tuple : Tupled g (TyTuple types))
-              -> (idx   : Fin (S n))
-                       -> Tupled g (index idx types)
+              -> (idx   : AtIndex i types ty)
+                       -> Tupled g ty
 
   public export
   index : {types  : Vect (S n) Ty}
-       -> (idx    : Fin (S n))
-       -> (fields : Fields g types)
-                 -> Tupled g (index idx types)
-  index FZ (Singleton first) = first
-  index FZ (Extend next rest) = next
-  index (FS x) (Extend next rest) = index _ rest
+       -> (fields : Fields  g types)
+       -> (idx    : AtIndex i types ty)
+                 -> Tupled  g       ty
+  index (Singleton field) Here = field
+  index (Extend field rest) Here = field
+
+  index (Singleton _) (There Here) impossible
+  index (Singleton _) (There (There later)) impossible
+
+  index (Extend field rest) (There later)
+    = index rest later
+
 
 namespace Renaming
 
@@ -103,8 +110,8 @@ namespace Renaming
     rename f (C x) = C x
 
     -- Tuples & Accessors
-    rename f (MkTuple values) = MkTuple (rename f values)
-    rename f (Proj tuple idx) = Proj (rename f tuple) idx
+    rename f (MkTuple values)   = MkTuple (rename f values)
+    rename f (Proj i tuple idx) = Proj i (rename f tuple) idx
 
 namespace Substitution
 
@@ -137,8 +144,8 @@ namespace Substitution
       subst f (C x) = C x
 
       -- Tuples & Accesors
-      subst f (MkTuple values) = MkTuple (subst f values)
-      subst f (Proj tuple idx) = Proj (subst f tuple) idx
+      subst f (MkTuple values)   = MkTuple (subst f values)
+      subst f (Proj i tuple idx) = Proj i (subst f tuple) idx
 
   namespace Single
     public export
@@ -217,16 +224,16 @@ namespace Reduction
       -- Accessors
       SimplifyProj : {0  labels : Vect (S n) Ty}
                   -> {   this, that : Tupled g (TyTuple labels)}
-                  -> {0  idx        : Fin (S n)}
+                  -> {0  idx        : AtIndex i labels ty}
                   -> Redux this that
-                  -> Redux (Proj this idx) (Proj that idx)
+                  -> Redux (Proj i this idx) (Proj i that idx)
 
       ReduceProj : {types  : Vect (S n) Ty}
                 -> {fields : Fields g types}
-                -> {idx    : Fin (S n)}
+                -> {idx    : AtIndex i types type}
                 -> (values : Value fields)
-                    -> Redux (Proj (MkTuple fields) idx)
-                             (index idx fields)
+                    -> Redux (Proj i (MkTuple fields) idx)
+                             (index fields idx)
 
 namespace Progress
 
@@ -260,6 +267,8 @@ namespace Progress
 
     public export
     progress : (term : Tupled Nil type) -> Progress term
+    progress (Var Here) impossible
+
     -- Let-Bindings & Variables
     progress (Var _) impossible
     progress (Let this beInThis) with (progress this)
@@ -275,9 +284,9 @@ namespace Progress
       progress (MkTuple values) | (Done v)   = Done (MkTupleV v)
       progress (MkTuple values) | (Step prf) = Step (SimplifyTupleR prf)
 
-    progress (Proj tuple idx) with (progress tuple)
-      progress (Proj (MkTuple fields) idx) | (Done (MkTupleV x)) = Step (ReduceProj x)
-      progress (Proj tuple idx) | (Step prf) = Step (SimplifyProj prf)
+    progress (Proj i tuple idx) with (progress tuple)
+      progress (Proj i (MkTuple fields) idx) | (Done (MkTupleV x)) = Step (ReduceProj x)
+      progress (Proj i tuple idx) | (Step prf) = Step (SimplifyProj prf)
 
 namespace Evaluation
 
@@ -342,8 +351,8 @@ namespace Examples
 
     public export
     a : Tupled Nil (TyInt)
-    a = Proj abc FZ
+    a = Proj FZ abc Here
 
     public export
     b : Tupled Nil (TyChar)
-    b = Proj abc (FS FZ)
+    b = Proj (FS FZ) abc (There Here)
